@@ -480,6 +480,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
         --extra-index-url ${PYTORCH_CUDA_INDEX_BASE_URL}/cu$(echo $CUDA_VERSION | cut -d. -f1,2 | tr -d '.'); \
     fi
 
+# Install and configure dev environment using post_install.sh
+COPY post_install.sh /usr/local/bin/post_install.sh
+RUN chmod +x /usr/local/bin/post_install.sh && /usr/local/bin/post_install.sh
+
+EXPOSE 22
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 #################### DEV IMAGE ####################
 #################### vLLM installation IMAGE ####################
 # image with vLLM installed

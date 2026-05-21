@@ -180,7 +180,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install -r requirements/dev.txt && \
     pre-commit install --hook-type pre-commit --hook-type commit-msg
 
-ENTRYPOINT ["bash"]
+# Install and configure dev environment using post_install_cpu.sh
+COPY post_install_cpu.sh /usr/local/bin/post_install_cpu.sh
+RUN chmod +x /usr/local/bin/post_install_cpu.sh && /usr/local/bin/post_install_cpu.sh
+
+EXPOSE 22
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["bash"]
 
 ######################### TEST IMAGE #########################
 FROM vllm-test-deps AS vllm-test
