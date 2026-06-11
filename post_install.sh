@@ -27,6 +27,8 @@ apt-get update && apt-get install -y --no-install-recommends \
     openssh-server \
     openssh-client \
     && rm -rf /var/lib/apt/lists/*
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y --no-install-recommends nodejs && rm -rf /var/lib/apt/lists/*
+npm install -g @openai/codex
 
 # ============================================
 # Python Development Tools
@@ -51,7 +53,8 @@ uv pip install --no-cache-dir \
     ninja \
     "packaging>=24.2" \
     wheel \
-    jinja2
+    jinja2 \
+    modelscope
 
 # Persist environment variables for SSH login
 export HF_HOME=/root/.cache/huggingface
@@ -92,8 +95,8 @@ python use_existing_torch.py
 # Enable ccache for C++ and CUDA compilation
 export CMAKE_CXX_COMPILER_LAUNCHER=ccache
 export CMAKE_CUDA_COMPILER_LAUNCHER=ccache
-uv pip install --python /opt/venv/bin/python3 --no-cache-dir -r requirements/build.txt
-TORCH_CUDA_ARCH_LIST="8.6;8.9" MAX_JOBS=16 CCACHE_NOHASHDIR="true" uv pip install --python /opt/venv/bin/python3 -e . -v --no-build-isolation
+uv pip install --python /opt/venv/bin/python3 --no-cache-dir -r requirements/build/cuda.txt
+TORCH_CUDA_ARCH_LIST="8.6;8.9;9.0" MAX_JOBS=16 CCACHE_NOHASHDIR="true" uv pip install --python /opt/venv/bin/python3 -e . -v --no-build-isolation
 
 echo "vLLM installed in editable mode"
 
@@ -103,12 +106,6 @@ echo "vLLM installed in editable mode"
 echo "[4/5] Downloading models..."
 export HF_HOME=/root/.cache/huggingface
 
-# Dense model (small, for quick testing)
-echo "Downloading Qwen3-0.6B..."
-huggingface-cli download Qwen/Qwen3-0.6B
-huggingface-cli download facebook/opt-125m
-echo "Downloading Qwen3-Embedding-0.6B..."
-huggingface-cli download Qwen/Qwen3-Embedding-0.6B
 
 # ============================================
 # Configure SSH Server
@@ -123,8 +120,27 @@ sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd
 cat > /usr/local/bin/docker-entrypoint.sh << 'EOF'
 #!/bin/sh
 service ssh start
+
+JUPYTER_PORT="${JUPYTER_PORT:-8888}"
+JUPYTER_LOG="${JUPYTER_LOG:-/var/log/jupyterlab.log}"
+JUPYTER_ALLOW_ORIGIN="${JUPYTER_ALLOW_ORIGIN:-*}"
+JUPYTER_ALLOW_REMOTE_ACCESS="${JUPYTER_ALLOW_REMOTE_ACCESS:-True}"
+JUPYTER_DISABLE_CHECK_XSRF="${JUPYTER_DISABLE_CHECK_XSRF:-True}"
+
+jupyter lab \
+  --ip=0.0.0.0 \
+  --port="${JUPYTER_PORT}" \
+  --no-browser \
+  --allow-root \
+  --ServerApp.token="${JUPYTER_TOKEN:-}" \
+  --ServerApp.password="${JUPYTER_PASSWORD:-}" \
+  --ServerApp.allow_origin="${JUPYTER_ALLOW_ORIGIN}" \
+  --ServerApp.allow_remote_access="${JUPYTER_ALLOW_REMOTE_ACCESS}" \
+  --ServerApp.disable_check_xsrf="${JUPYTER_DISABLE_CHECK_XSRF}" \
+  > "${JUPYTER_LOG}" 2>&1 &
+
 if [ $# -eq 0 ]; then
-  exec /bin/bash
+  exec tail -f /dev/null
 else
   exec "$@"
 fi
@@ -136,8 +152,6 @@ chmod +x /usr/local/bin/docker-entrypoint.sh
 # ============================================
 echo "[6/6] Verifying installation..."
 python -c "import vllm; print(f'vLLM version: {vllm.__version__}')"
-echo "Models cached at: $HF_HOME"
-ls -la $HF_HOME/hub/
 
 echo "=========================================="
 echo "Post-installation complete!"
