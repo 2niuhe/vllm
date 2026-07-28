@@ -34,7 +34,11 @@ apt-get update && apt-get install -y --no-install-recommends \
     openssh-server \
     openssh-client \
     && rm -rf /var/lib/apt/lists/*
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y --no-install-recommends nodejs && rm -rf /var/lib/apt/lists/*
+# curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y --no-install-recommends nodejs && rm -rf /var/lib/apt/lists/*
+wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.6/install.sh | bash
+\. "$HOME/.nvm/nvm.sh"
+nvm install 24
+node -v
 npm install -g @openai/codex
 npm install -g @anthropic-ai/claude-code
 
@@ -46,12 +50,14 @@ echo "[2/6] Configuring Zsh and Rust..."
 # Keep the install non-interactive so Docker builds do not hang. Do not let the
 # installer change the shell itself; usermod below does that explicitly.
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
-    RUNZSH=no CHSH=no KEEP_ZSHRC=yes \
-        sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+    wget -qO /tmp/oh-my-zsh-install.sh \
+        https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
+    RUNZSH=no CHSH=no KEEP_ZSHRC=yes sh /tmp/oh-my-zsh-install.sh
+    rm -f /tmp/oh-my-zsh-install.sh
 fi
 
 if [ ! -x "$HOME/.cargo/bin/rustup" ]; then
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+    wget -qO- https://sh.rustup.rs | \
         sh -s -- -y --profile minimal --default-toolchain stable
 fi
 . "$HOME/.cargo/env"
@@ -63,7 +69,6 @@ append_shell_config() {
 
     if ! grep -Fq '# >>> vLLM dev environment >>>' "$shell_rc" 2>/dev/null; then
         cat >> "$shell_rc" << 'EOF'
-
 # >>> vLLM dev environment >>>
 export PATH="/opt/venv/bin:$HOME/.local/bin:$PATH"
 export VIRTUAL_ENV="/opt/venv"
@@ -166,13 +171,11 @@ sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd
 cat > /usr/local/bin/docker-entrypoint.sh << 'EOF'
 #!/bin/sh
 service ssh start
-
 JUPYTER_PORT="${JUPYTER_PORT:-8888}"
 JUPYTER_LOG="${JUPYTER_LOG:-/var/log/jupyterlab.log}"
 JUPYTER_ALLOW_ORIGIN="${JUPYTER_ALLOW_ORIGIN:-*}"
 JUPYTER_ALLOW_REMOTE_ACCESS="${JUPYTER_ALLOW_REMOTE_ACCESS:-True}"
 JUPYTER_DISABLE_CHECK_XSRF="${JUPYTER_DISABLE_CHECK_XSRF:-True}"
-
 jupyter lab \
   --ip=0.0.0.0 \
   --port="${JUPYTER_PORT}" \
@@ -184,7 +187,6 @@ jupyter lab \
   --ServerApp.allow_remote_access="${JUPYTER_ALLOW_REMOTE_ACCESS}" \
   --ServerApp.disable_check_xsrf="${JUPYTER_DISABLE_CHECK_XSRF}" \
   > "${JUPYTER_LOG}" 2>&1 &
-
 if [ $# -eq 0 ]; then
   exec tail -f /dev/null
 else
